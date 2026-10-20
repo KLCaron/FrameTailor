@@ -18,11 +18,14 @@ def main() -> int:
     transform.add_argument("source", type=Path, help="animation manifest JSON")
     transform.add_argument("--config", required=True, type=Path)
     transform.add_argument("--out", required=True, type=Path)
-    merge = commands.add_parser("composite", help="copy candidate RGBA only within source-authorized edit regions")
+    merge = commands.add_parser("composite", help="composite only within source-authorized edit regions")
     merge.add_argument("source", type=Path)
     merge.add_argument("candidate", type=Path)
     merge.add_argument("--editable-mask", required=True, type=Path)
     merge.add_argument("--out", required=True, type=Path)
+    merge.add_argument("--mode", choices=["rgba-replace", "preserve-source-silhouette"], default="rgba-replace")
+    merge.add_argument("--missing-candidate", choices=["error", "source"], default="error",
+                       help="transparent candidate policy in silhouette mode; source fallback is recorded")
     check = commands.add_parser("validate", help="compare candidate structure against its source")
     check.add_argument("source", type=Path)
     check.add_argument("candidate", type=Path)
@@ -36,7 +39,7 @@ def main() -> int:
         elif args.command == "transform":
             result = run(args.source, args.config, args.out)
         elif args.command == "composite":
-            result = composite(args.source, args.candidate, args.editable_mask, args.out)
+            result = composite(args.source, args.candidate, args.editable_mask, args.out, args.mode, args.missing_candidate)
         else:
             if args.profile == "outfit-regions-v1":
                 if args.editable_mask is None:
