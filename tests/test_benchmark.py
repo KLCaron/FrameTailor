@@ -63,6 +63,39 @@ class OutfitBenchmarkTests(unittest.TestCase):
         self.changed.save(self.candidate / "sheet.png")
         self.assertTrue(any("duplicate" in e for e in self.check()["errors"]))
 
+    def test_repeated_stored_pose_and_repeated_animation_references_allowed(self):
+        # Original synthetic artwork only. Two stored identities share a pose;
+        # the animation also revisits that pose, including a mirrored reference.
+        self.sheet.paste(self.frames[0], (128, 0))
+        self.sheet.save(self.source / "sheet.png")
+        with Image.open(self.mask) as image:
+            mask = image.copy()
+        mask.paste(mask.crop((0, 0, 64, 64)), (128, 0))
+        mask.save(self.mask)
+        self.changed.paste(self.changed.crop((0, 0, 64, 64)), (128, 0))
+        self.changed.save(self.candidate / "sheet.png")
+        self.spec["sequences"] = {"walk": [
+            {"frame_id": "pose-0", "hflip": False},
+            {"frame_id": "pose-1", "hflip": False},
+            {"frame_id": "pose-0", "hflip": False},
+            {"frame_id": "pose-2", "hflip": True}]}
+        # Reference actual stored identities rather than pixel equality.
+        for item, index in zip(self.spec["sequences"]["walk"], (0, 1, 0, 2)):
+            item["frame_id"] = self.spec["frames"][index]["id"]
+        write_json(self.manifest, self.spec)
+        write_json(self.candidate / "animation.json", self.spec)
+        self.assertTrue(self.check()["ok"], self.check())
+        # Rewriting a repeated reference remains a metadata substitution.
+        altered = deepcopy(self.spec)
+        altered["sequences"]["walk"][2]["frame_id"] = self.spec["frames"][3]["id"]
+        write_json(self.candidate / "animation.json", altered)
+        self.assertFalse(self.check()["ok"])
+        write_json(self.candidate / "animation.json", self.spec)
+        # A new duplicate of an originally distinct pose is still collapse.
+        self.changed.paste(self.changed.crop((0, 0, 64, 64)), (192, 0))
+        self.changed.save(self.candidate / "sheet.png")
+        self.assertTrue(any("collapsed distinct" in e for e in self.check()["errors"]))
+
     def test_metadata_changes_rejected(self):
         mutations = [lambda s: s["frames"].reverse(),
                      lambda s: s["frames"].pop(),

@@ -51,15 +51,21 @@ def validate_outfit(source: Path, candidate: Path, editable_mask: Path) -> dict:
                     protected_changed = True
         if protected_changed:
             errors.append("pixels changed outside permitted clothing regions")
-    source_pixels = {frame.tobytes() for frame in source_frames}
-    seen = set()
+    # Compare stored poses against source relationships. Repeated references in
+    # animation metadata do not create extra stored frames. Distinct ids may
+    # legitimately contain the same pose in the source atlas.
+    source_pixels = [(frame.size, frame.tobytes()) for frame in source_frames]
+    target_pixels = [(frame.size, frame.tobytes()) for frame in target_frames]
     for index, frame in enumerate(target_frames):
-        pixels = frame.tobytes()
-        if pixels in source_pixels:
-            errors.append(f"frame {index}: unchanged or substituted source frame")
-        if pixels in seen:
-            errors.append(f"frame {index}: duplicate candidate frame")
-        seen.add(pixels)
+        pixels = target_pixels[index]
+        if index < len(source_pixels) and pixels == source_pixels[index]:
+            errors.append(f"frame {index}: unchanged source frame")
+        elif pixels in source_pixels:
+            errors.append(f"frame {index}: substituted source frame")
+        for previous in range(min(index, len(source_pixels))):
+            if (index < len(source_pixels) and pixels == target_pixels[previous]
+                    and source_pixels[index] != source_pixels[previous]):
+                errors.append(f"frame {index}: unexpected duplicate candidate frame (collapsed distinct source poses {previous}, {index})")
     return {"ok": not errors, "profile": "outfit-regions-v1", "errors": errors,
             "frame_count": len(target_frames), "changed_pixels": changed,
             "approved": False, "review_status": "pending" if not errors else "blocked",
