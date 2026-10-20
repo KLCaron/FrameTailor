@@ -55,3 +55,24 @@ The review bundle retains the input candidate separately and includes frame PNGs
 Transfer maps count actual result changes; discard maps count unauthorized candidate changes. Silhouette mode reports actual alpha changes separately and leaves them at zero. Fallback and silhouette preservation are structural operations and never grant artistic approval. The catalog APNG follows stored-frame order; target-specific animation references and flips require a target-aware preview.
 
 All example artwork is original and programmatically drawn under [Apache-2.0](LICENSE). No game artwork, engine dependencies, service credentials or paid providers are included.
+
+## Native-grid outfit pilot
+
+Generate an original 16×32 courier's nine stored walking poses, then apply a blue zip jacket and ochre bib overalls with one shared character template:
+
+```sh
+python -m examples.native_walk --out output/native-walk
+frametailor outfit output/native-walk/source/animation.json \
+  --template output/native-walk/source/template.json \
+  --outfit output/native-walk/source/overalls.json --out output/another-outfit
+```
+
+The [example source](examples/native_walk.py) draws the fixture and authors its template together. A static grayscale region sheet uses zero for protected pixels and nonzero ids for semantic material/shade roles (torso, sleeves, legs). The template binds the source sheet hash and animation structure; each stored pose supplies a view, integer anchors and an explicit `exceptions` list. An outfit supplies material colors and view-specific detail pixels as `[dx, dy, "material.shade"]`, relative to those anchors. Each detail declares its permitted region ids. The generated JSON files are runnable schema examples; no model, service or candidate image is involved.
+
+All six region labels and all 24 pose anchors are reused for the second outfit. Details are defined three times per outfit (front/back/side), with no per-frame outfit definitions or output painting. The example needs zero frame exceptions. Its four directional APNG comparisons follow explicit walk references, including repeated idle poses and mirrored east; the compositor's separate catalog preview follows stored order.
+
+The jacket has a collar, zipper, pocket openings, cuffs and back yoke. The overalls have a bib, straps, clasps and back braces. These occupy native pixels without resampling. Out-of-region, overlapping, invisible or out-of-frame details fail rather than being clipped. A global source-color split check rejects palette-only results; this diagnostic cannot establish garment quality. An optional visible-color budget checks counts only, without quantization or engine palette encoding.
+
+The renderer reuses silhouette compositing and both existing validation profiles, preserves all animation metadata, and records detail coordinates, material contrast, exceptions, inputs and hashes in the review bundle. Bundled `inputs/animation.json`, `template.json` and `outfit.json` can replay it. Reports keep `approved: false`. Review `comparison-native.png`, `comparison-10x.png` and `walking-{direction}-{1,10}x.png` for readability and clothing consistency.
+
+This bounded pilot preserves source silhouettes; future garments need not. New characters still require source-authored regions and pose anchors. The example's rigid torso and visible cuffs avoid difficult occlusion: long coats, loose sleeves, asymmetric accessories and changing depth order would need additional design and pose-specific review. Mirrored directions also mirror asymmetric details. This is neither animation synthesis nor a game exporter. Generated bundles and private external assets belong in ignored local directories.
