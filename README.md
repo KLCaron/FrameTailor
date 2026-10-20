@@ -88,3 +88,13 @@ The [independent mechanic source](examples/independent_walk.py) draws a broader 
 `frametailor.native.regions_from_colors(sheet, {"#c37842": 1, ...})` creates an L-mode region sheet from explicit source RGB assignments. Unmapped and transparent pixels stay protected; absent colors and invalid assignments fail. It does not classify anatomy. Use it only when selected colors belong exclusively to their declared clothing roles across every source pose. Shared colors on hair, skin, accessories or occluding parts require separately authored regions. Inspect all resulting masks before binding the template to the source hashes.
 
 Preparing this mechanic uses six color assignments instead of painting nine region masks, plus 24 manually placed pose anchors. All nine region maps still require review. The unchanged jacket needs zero view adjustments, frame exceptions or output pixel corrections; its 147 detail placements transfer to each character. Existing overalls also render with the same mechanic template, checked by the regression suite. These are bounded structural results, with `approved: false`; native-size comparisons and four directional APNGs remain separate visual evidence. Semantic ownership, anchor placement and occlusion review remain character-specific work.
+
+For shared colors, `frametailor.native.regions_from_rules(sheet, rules)` combines explicit RGB assignments with sheet-local `[x, y, width, height]` rectangles:
+
+```python
+rules = [{"rect": [4, 16, 8, 8], "colors": {"#65866b": 1}}]
+```
+
+Unmatched and transparent pixels stay protected. Missing colors, invalid bounds and conflicting labels fail; rule order cannot override ownership. Review the resulting labels against every source pose. Accessories can be replaceable clothing, and skin covered by a sleeve can belong to clothing; these are source-specific decisions, not automatic classifications.
+
+A template pose may declare `"occluders": {"near_hand": [[7, 20], [7, 21]]}` using frame-local coordinates. These points must be visible, protected source pixels. A garment detail can opt in with `"occluded_by": ["near_hand"]`; only matching points retain the source instead of receiving detail color. The named part may be absent from other poses, but must exist in the template. All other bounds, region and overlap checks still apply. Reports record each hidden detail coordinate and total `occluded_pixel_count`; record unusual pose decisions in `exceptions`. This handles simple foreground parts, without depth inference, rigging or silhouette changes. Palette budgets count visible RGB colors only; indexed encoding and target-specific palette validation remain external.

@@ -10,7 +10,7 @@ import unittest
 from PIL import Image, ImageOps
 
 from examples.native_walk import create_fixture, review
-from frametailor.native import native_outfit, render
+from frametailor.native import native_outfit, regions_from_rules, render
 from frametailor.pipeline import digest, load, structure, write_json
 
 
@@ -206,3 +206,68 @@ class NativeOutfitTests(unittest.TestCase):
             capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(json.loads(result.stdout)["ok"])
+
+    def test_color_and_geometry_ownership_is_explicit_and_order_independent(self):
+        sheet = Image.new("RGBA", (4, 2), "#65866b")
+        sheet.putpixel((3, 1), (101, 134, 107, 0))
+        rules = [{"rect": [0, 0, 2, 1], "colors": {"#65866b": 1}},
+                 {"rect": [2, 1, 2, 1], "colors": {"#65866b": 2}}]
+        labels = regions_from_rules(sheet, rules)
+        self.assertEqual(list(labels.get_flattened_data()), [1, 1, 0, 0, 0, 0, 2, 0])
+        self.assertEqual(labels.tobytes(), regions_from_rules(sheet, rules[::-1]).tobytes())
+        for bad, error in (([{"rect": [0, 0, 1, 1], "colors": {"#65866b": 2}}], "conflicting"),
+                           ([{"rect": [0, 0, 5, 1], "colors": {"#65866b": 1}}], "outside"),
+                           ([{"rect": [0, 0, True, 1], "colors": {"#65866b": 1}}], "ownership rect"),
+                           ([{"rect": [0, 0, 1, 1], "colors": {"#ffffff": 1}}], "absent")):
+            with self.assertRaisesRegex(ValueError, error):
+                regions_from_rules(sheet, rules + bad)
+
+    def test_pose_occlusion_preserves_exact_source_and_replays_from_bundle(self):
+        template = json.loads(self.template.read_text())
+        template["poses"]["south-0"]["occluders"] = {"front_part": [[7, 17]]}
+        template["poses"]["south-0"]["exceptions"] = ["Front part covers the zipper in this pose"]
+        write_json(self.template, template)
+        with Image.open(self.source / "regions.png") as image:
+            labels = image.copy()
+        labels.putpixel((7, 17), 0)
+        labels.save(self.source / "regions.png")
+        outfit = json.loads(self.outfit.read_text())
+        outfit["views"]["south"][1]["occluded_by"] = ["front_part"]
+        write_json(self.outfit, outfit)
+        before = load(self.manifest)[1]
+        report = native_outfit(self.manifest, self.template, self.outfit, self.root / "occluded")
+        after = load(self.root / "occluded/animation.json")[1]
+        self.assertEqual(after.getpixel((7, 17)), before.getpixel((7, 17)))
+        self.assertEqual(report["occluded_pixel_count"], 1)
+        self.assertEqual(report["frames"][0]["details"][1]["occluded_pixels"], [[7, 17]])
+        self.assertEqual(report["frames"][1]["details"][1]["occluded_pixels"], [])
+        replay = render(self.root / "occluded/inputs/animation.json",
+                        self.root / "occluded/inputs/template.json", self.root / "occluded/inputs/outfit.json")[0]
+        self.assertEqual(replay.tobytes(), after.tobytes())
+        # A completely hidden detail is valid; invalid roles and overlaps still fail.
+        outfit["views"]["south"][1]["pixels"] = [[2, 2, "trim.base"]]
+        write_json(self.outfit, outfit)
+        self.assertEqual(render(self.manifest, self.template, self.outfit)[2]["occluded_pixel_count"], 1)
+        for pixels, error in (([[2, 2, "undefined.base"]], "undefined/invalid"),
+                              ([[2, 2, "trim.base"], [2, 2, "trim.base"]], "overlapping"),
+                              ([[2, 2, "trim.base"], [2, 3, "torso.base"]], "no contrast")):
+            outfit["views"]["south"][1]["pixels"] = pixels
+            write_json(self.outfit, outfit)
+            with self.assertRaisesRegex(ValueError, error):
+                render(self.manifest, self.template, self.outfit)
+
+    def test_occlusion_cannot_authorize_edits_or_hide_invalid_details(self):
+        template = json.loads(self.template.read_text())
+        for points in ([[7, 17]], [[0, 0]], [[16, 17]], [[7.5, 17]], [[7, 17], [7, 17]]):
+            config = deepcopy(template)
+            config["poses"]["south-0"]["occluders"] = {"front_part": points}
+            write_json(self.template, config)
+            with self.assertRaisesRegex(ValueError, "occluder"):
+                native_outfit(self.manifest, self.template, self.outfit, self.root / "invalid")
+            self.assertFalse((self.root / "invalid").exists())
+        write_json(self.template, template)
+        outfit = json.loads(self.outfit.read_text())
+        outfit["views"]["south"][0]["occluded_by"] = ["misspelled"]
+        write_json(self.outfit, outfit)
+        with self.assertRaisesRegex(ValueError, "unknown source occluder"):
+            render(self.manifest, self.template, self.outfit)
