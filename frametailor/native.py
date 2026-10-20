@@ -26,6 +26,34 @@ def _point(value: object) -> bool:
             and all(type(v) is int for v in value))
 
 
+def regions_from_colors(sheet: Image.Image, colors: dict[str, int]) -> Image.Image:
+    """Explicit source-palette annotation, not semantic inference.
+
+    Only use where each chosen RGB belongs exclusively to one clothing role in
+    every pose. Unmapped and transparent pixels stay protected. Inspect the
+    resulting labels before binding a template; shared skin/accessory colors
+    need a separately authored region sheet instead.
+    """
+    if not isinstance(colors, dict) or not colors:
+        raise ValueError("provide explicit source RGB-to-region assignments")
+    lookup = {}
+    for color, label in colors.items():
+        if (not isinstance(color, str) or re.fullmatch(r"#[0-9a-fA-F]{6}", color) is None
+                or type(label) is not int or not 1 <= label <= 255):
+            raise ValueError("source colors need #rrggbb keys and region ids 1..255")
+        rgb = tuple(bytes.fromhex(color[1:]))
+        if rgb in lookup:
+            raise ValueError("duplicate source RGB assignment")
+        lookup[rgb] = label
+    pixels = list(sheet.convert("RGBA").get_flattened_data())
+    visible = {p[:3] for p in pixels if p[3]}
+    if not lookup.keys() <= visible:
+        raise ValueError("assigned source color is absent from visible pixels")
+    regions = Image.new("L", sheet.size)
+    regions.putdata([lookup.get(p[:3], 0) if p[3] else 0 for p in pixels])
+    return regions
+
+
 def render(source: Path, template_path: Path, outfit_path: Path) -> tuple[Image.Image, Image.Image, dict]:
     """Render without resampling, blending, inferred regions or silent clipping."""
     spec, sheet, frames = load(source)
