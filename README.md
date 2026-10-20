@@ -76,3 +76,15 @@ The jacket has a collar, zipper, pocket openings, cuffs and back yoke. The overa
 The renderer reuses silhouette compositing and both existing validation profiles, preserves all animation metadata, and records detail coordinates, material contrast, exceptions, inputs and hashes in the review bundle. Bundled `inputs/animation.json`, `template.json` and `outfit.json` can replay it. Reports keep `approved: false`. Review `comparison-native.png`, `comparison-10x.png` and `walking-{direction}-{1,10}x.png` for readability and clothing consistency.
 
 This bounded pilot preserves source silhouettes; future garments need not. New characters still require source-authored regions and pose anchors. The example's rigid torso and visible cuffs avoid difficult occlusion: long coats, loose sleeves, asymmetric accessories and changing depth order would need additional design and pose-specific review. Mirrored directions also mirror asymmetric details. This is neither animation synthesis nor a game exporter. Generated bundles and private external assets belong in ignored local directories.
+
+## Cross-character walking example
+
+```sh
+python -m examples.portable_walk --out output/portable-walk
+```
+
+The [independent mechanic source](examples/independent_walk.py) draws a broader body, smaller angular head, sloping shoulders, splayed boots and different arm/hip poses without importing the courier or any template definitions. Its [separate template authoring](examples/portable_walk.py) applies the courier's jacket JSON unchanged: all materials and front/back/side detail geometry are shared. The body still accommodates the fixed six-by-eight-pixel torso pattern; this example does not adapt garment geometry to arbitrary proportions or depth changes. Both sources remain usable on their own, with separate animation timing and protected features.
+
+`frametailor.native.regions_from_colors(sheet, {"#c37842": 1, ...})` creates an L-mode region sheet from explicit source RGB assignments. Unmapped and transparent pixels stay protected; absent colors and invalid assignments fail. It does not classify anatomy. Use it only when selected colors belong exclusively to their declared clothing roles across every source pose. Shared colors on hair, skin, accessories or occluding parts require separately authored regions. Inspect all resulting masks before binding the template to the source hashes.
+
+Preparing this mechanic uses six color assignments instead of painting nine region masks, plus 24 manually placed pose anchors. All nine region maps still require review. The unchanged jacket needs zero view adjustments, frame exceptions or output pixel corrections; its 147 detail placements transfer to each character. Existing overalls also render with the same mechanic template, checked by the regression suite. These are bounded structural results, with `approved: false`; native-size comparisons and four directional APNGs remain separate visual evidence. Semantic ownership, anchor placement and occlusion review remain character-specific work.
