@@ -7,6 +7,7 @@ from .benchmark import validate_outfit
 from .composite import composite
 from .demo import create_demo
 from .pipeline import run, validate
+from .native import native_outfit
 
 
 def main() -> int:
@@ -18,6 +19,11 @@ def main() -> int:
     transform.add_argument("source", type=Path, help="animation manifest JSON")
     transform.add_argument("--config", required=True, type=Path)
     transform.add_argument("--out", required=True, type=Path)
+    native = commands.add_parser("outfit", help="apply source-bound semantic regions and native pixel details")
+    native.add_argument("source", type=Path)
+    native.add_argument("--template", required=True, type=Path)
+    native.add_argument("--outfit", required=True, type=Path)
+    native.add_argument("--out", required=True, type=Path)
     merge = commands.add_parser("composite", help="composite only within source-authorized edit regions")
     merge.add_argument("source", type=Path)
     merge.add_argument("candidate", type=Path)
@@ -40,6 +46,8 @@ def main() -> int:
             result = run(args.source, args.config, args.out)
         elif args.command == "composite":
             result = composite(args.source, args.candidate, args.editable_mask, args.out, args.mode, args.missing_candidate)
+        elif args.command == "outfit":
+            result = native_outfit(args.source, args.template, args.outfit, args.out)
         else:
             if args.profile == "outfit-regions-v1":
                 if args.editable_mask is None:
