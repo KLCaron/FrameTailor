@@ -54,6 +54,38 @@ def regions_from_colors(sheet: Image.Image, colors: dict[str, int]) -> Image.Ima
     return regions
 
 
+def regions_from_rules(sheet: Image.Image, rules: list[dict]) -> Image.Image:
+    """Combine explicit RGB ownership with sheet-local rectangles.
+
+    Rectangles are [x, y, width, height]. Unmatched pixels remain protected.
+    Conflicting labels fail; rule order never decides ownership. This annotates
+    source art only and does not infer anatomy or derive masks from output.
+    """
+    if not isinstance(rules, list) or not rules:
+        raise ValueError("provide nonempty source ownership rules")
+    result = Image.new("L", sheet.size)
+    for rule in rules:
+        if not isinstance(rule, dict):
+            raise ValueError("ownership rule must be an object")
+        rect = rule.get("rect")
+        if (not isinstance(rect, list) or len(rect) != 4
+                or not all(integer(v) for v in rect) or not all(v > 0 for v in rect[2:])):
+            raise ValueError("ownership rect must be [x, y, positive width, positive height]")
+        x, y, w, h = rect
+        if x + w > sheet.width or y + h > sheet.height:
+            raise ValueError("ownership rectangle outside source")
+        labels = regions_from_colors(sheet.crop((x, y, x + w, y + h)), rule.get("colors"))
+        for py in range(h):
+            for px in range(w):
+                label = labels.getpixel((px, py))
+                previous = result.getpixel((x + px, y + py))
+                if label and previous not in (0, label):
+                    raise ValueError("conflicting source ownership rules")
+                if label:
+                    result.putpixel((x + px, y + py), label)
+    return result
+
+
 def render(source: Path, template_path: Path, outfit_path: Path) -> tuple[Image.Image, Image.Image, dict]:
     """Render without resampling, blending, inferred regions or silent clipping."""
     spec, sheet, frames = load(source)
@@ -78,6 +110,9 @@ def render(source: Path, template_path: Path, outfit_path: Path) -> tuple[Image.
         raise ValueError("labels must define canonical region ids 1..255")
     if not isinstance(poses, dict) or set(poses) != {f["id"] for f in spec["frames"]}:
         raise ValueError("poses must cover exactly the source frame ids")
+    occluder_names = {name for pose in poses.values() if isinstance(pose, dict)
+                      and isinstance(pose.get("occluders", {}), dict)
+                      for name in pose.get("occluders", {})}
     if not set(regions.get_flattened_data()) <= {0, *map(int, labels)}:
         raise ValueError("undefined region label")
     materials = outfit.get("materials")
@@ -114,6 +149,19 @@ def render(source: Path, template_path: Path, outfit_path: Path) -> tuple[Image.
         details = views.get(pose.get("view"))
         if not isinstance(details, list) or not details:
             raise ValueError("every pose view needs explicit garment details")
+        occluders = pose.get("occluders", {})
+        if not isinstance(occluders, dict):
+            raise ValueError("pose occluders must be named point lists")
+        for name, points in occluders.items():
+            if (not isinstance(name, str) or not name or not isinstance(points, list) or not points
+                    or not all(_point(p) for p in points)
+                    or len({tuple(p) for p in points}) != len(points)):
+                raise ValueError("occluder needs a name and unique integer points")
+            for px, py in points:
+                if (not (0 <= px < w and 0 <= py < h)
+                        or regions.getpixel((x + px, y + py)) != 0
+                        or not frame.getpixel((px, py))[3]):
+                    raise ValueError("occluder must name visible protected source pixels")
         for py in range(h):
             for px in range(w):
                 label = regions.getpixel((x + px, y + py))
@@ -134,27 +182,41 @@ def render(source: Path, template_path: Path, outfit_path: Path) -> tuple[Image.
                     or not isinstance(pixels, list) or not pixels):
                 raise ValueError("detail needs a unique name, known anchor/regions and pixels")
             names.add(name)
+            blockers = detail.get("occluded_by", [])
+            if (not isinstance(blockers, list) or not all(isinstance(n, str) and n for n in blockers)
+                    or len(set(blockers)) != len(blockers)):
+                raise ValueError("occluded_by must list unique occluder names")
+            if not set(blockers) <= occluder_names:
+                raise ValueError("unknown source occluder")
+            # A named part can be absent from a pose; only authored coordinates
+            # can occlude. All other out-of-region pixels still fail below.
+            blocked = {tuple(p) for n in blockers for p in occluders.get(n, [])}
             ax, ay = anchors[anchor]
-            points = []
+            points, hidden = [], []
             changed = 0
             for pixel in pixels:
                 if not isinstance(pixel, list) or len(pixel) != 3 or not _point(pixel[:2]):
                     raise ValueError("detail pixel must be [integer dx, integer dy, material.shade]")
                 dx, dy, role = pixel
                 px, py = ax + dx, ay + dy
-                if (not (0 <= px < w and 0 <= py < h)
-                        or regions.getpixel((x + px, y + py)) not in allowed):
-                    raise ValueError(f"{entry['id']}/{name}: detail outside declared garment region at {[px, py]}")
+                rgba_color = color(role)
                 if (px, py) in used:
                     raise ValueError("overlapping detail pixels; author the final pattern explicitly")
                 used.add((px, py))
-                rgba = (*color(role)[:3], frame.getpixel((px, py))[3])
+                if (px, py) in blocked:
+                    hidden.append([px, py])
+                    continue
+                if (not (0 <= px < w and 0 <= py < h)
+                        or regions.getpixel((x + px, y + py)) not in allowed):
+                    raise ValueError(f"{entry['id']}/{name}: detail outside declared garment region at {[px, py]}")
+                rgba = (*rgba_color[:3], frame.getpixel((px, py))[3])
                 changed += rgba != base.getpixel((px, py))
                 result.putpixel((x + px, y + py), rgba)
                 points.append([px, py])
-            if not changed:
+            if not changed and (points or not hidden):
                 raise ValueError(f"{entry['id']}/{name}: detail has no contrast against base material")
-            placements.append({"name": name, "pixels": points, "changed_from_material": changed})
+            placements.append({"name": name, "pixels": points, "occluded_pixels": hidden,
+                               "changed_from_material": changed})
         output = result.crop((x, y, x + w, y + h))
         mappings = {}
         for a, b in zip(frame.get_flattened_data(), output.get_flattened_data()):
@@ -164,7 +226,8 @@ def render(source: Path, template_path: Path, outfit_path: Path) -> tuple[Image.
         if not splits:
             raise ValueError(f"{entry['id']}: output is explainable by palette recoloring alone")
         records.append({"id": entry["id"], "view": pose["view"], "anchors": anchors,
-                        "exceptions": exceptions, "details": placements, "source_color_splits": splits})
+                        "exceptions": exceptions, "occluders": occluders,
+                        "details": placements, "source_color_splits": splits})
     if any(m and not o for m, o in zip(mask.get_flattened_data(), occupied.get_flattened_data())):
         raise ValueError("regions outside declared frames")
     limit = outfit.get("max_visible_colors")
@@ -175,6 +238,7 @@ def render(source: Path, template_path: Path, outfit_path: Path) -> tuple[Image.
         "visible_colors": count, "max_visible_colors": limit, "frames": records,
         "frame_exception_count": sum(bool(r["exceptions"]) for r in records),
         "detail_pixel_count": sum(len(d["pixels"]) for r in records for d in r["details"]),
+        "occluded_pixel_count": sum(len(d["occluded_pixels"]) for r in records for d in r["details"]),
         "policy": "source silhouette retained for this pilot; no clipping, fallback or resampling",
         "review_required": ["garment readability", "directional consistency", "motion and occlusion"]}
 
