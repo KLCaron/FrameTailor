@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "frametailor"
+version = "0.1.0"
+description = "Structure-preserving transformations for existing sprite animations"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["Pillow==12.3.0"]
+
+[project.scripts]
+frametailor = "frametailor.__main__:main"
+
+[tool.setuptools]
+packages = ["frametailor"]
+include-package-data = false

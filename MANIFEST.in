@@ -1,0 +1,13 @@
+include examples/generate_outfit_fixture.py
+include examples/robot-comparison.png
+include examples/robot/animation.json examples/robot/transform.json examples/robot/sheet.png
+include examples/outfit/animation.json examples/outfit/acceptance.json
+include examples/outfit/sheet.png examples/outfit/outfit-reference.png
+include examples/outfit/editable-mask.png examples/outfit/preview.png
+include examples/outfit/frames/0000.png examples/outfit/frames/0001.png
+include examples/outfit/frames/0002.png examples/outfit/frames/0003.png
+include tests/test_pipeline.py tests/test_benchmark.py tests/test_composite.py
+prune .research
+prune output
+prune .venv
+global-exclude __pycache__ *.py[cod]

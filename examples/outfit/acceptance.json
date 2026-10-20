@@ -1,0 +1,106 @@
+{
+  "editable_mask": "editable-mask.png",
+  "mask_convention": "255 permits RGB/alpha changes; 0 requires exact RGBA preservation",
+  "pose_landmarks": {
+    "walk-0": {
+      "head": [
+        32,
+        16
+      ],
+      "screen_left_hand": [
+        18,
+        38
+      ],
+      "screen_left_heel": [
+        24,
+        57
+      ],
+      "screen_right_hand": [
+        44,
+        38
+      ],
+      "screen_right_heel": [
+        39,
+        57
+      ]
+    },
+    "walk-1": {
+      "head": [
+        32,
+        15
+      ],
+      "screen_left_hand": [
+        20,
+        37
+      ],
+      "screen_left_heel": [
+        26,
+        57
+      ],
+      "screen_right_hand": [
+        42,
+        37
+      ],
+      "screen_right_heel": [
+        37,
+        57
+      ]
+    },
+    "walk-2": {
+      "head": [
+        32,
+        16
+      ],
+      "screen_left_hand": [
+        24,
+        38
+      ],
+      "screen_left_heel": [
+        30,
+        57
+      ],
+      "screen_right_hand": [
+        38,
+        38
+      ],
+      "screen_right_heel": [
+        33,
+        57
+      ]
+    },
+    "walk-3": {
+      "head": [
+        32,
+        15
+      ],
+      "screen_left_hand": [
+        22,
+        37
+      ],
+      "screen_left_heel": [
+        28,
+        57
+      ],
+      "screen_right_hand": [
+        40,
+        37
+      ],
+      "screen_right_heel": [
+        35,
+        57
+      ]
+    }
+  },
+  "profile": "outfit-regions-v1",
+  "review_checks": [
+    "Keep frame identity/order, timing, anchors and all four source poses; do not mirror or realign",
+    "Head, tuft, cheek mark, wristband, hands and boots remain at source coordinates",
+    "New collar, pocket, badge and jacket cut must be consistent in every frame",
+    "Outfit must change garment construction, not just recolor the original shirt",
+    "Silhouette changes are confined to white mask pixels; no cape, hat or foot movement",
+    "Inspect loop playback for movement and clothing flicker; inspect all frame pairs",
+    "Require successful provider job, exact response count/order, recorded cost/seed and no fallbacks",
+    "Reject missing, unchanged, substituted or duplicated frames; structural success is not approval"
+  ],
+  "target": "Violet flared jacket, gold collar, one teal pocket on screen right, orange badge on screen left"
+}

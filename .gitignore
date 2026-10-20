@@ -1,0 +1,44 @@
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+output/
+
+# Local research, plans and experimental artifacts
+.research/
+.env
+.env.*
+!.env.example
+
+# Local workflow instructions, caches, temporary files and credentials
+/AGENTS.md
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+.DS_Store
+.idea/
+.vscode/
+*.pem
+*.key
+credentials*.json
+service-account*.json
+
+# Keep external game materials and generated experiments local
+*[Pp]okemon*
+*[Pp]okémon*
+*.4bpp
+*.gbapal
+candidates/
+model-outputs/
+.frametailor-*/
