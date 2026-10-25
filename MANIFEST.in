@@ -11,6 +11,7 @@ include examples/outfit/frames/0002.png examples/outfit/frames/0003.png
 include tests/test_pipeline.py tests/test_benchmark.py tests/test_composite.py
 include tests/test_native.py
 include tests/test_portability.py
+include examples/ownership_review.py tests/test_ownership.py
 prune .research
 prune output
 prune .venv
