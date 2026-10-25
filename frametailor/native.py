@@ -267,6 +267,10 @@ def native_outfit(source: Path, template: Path, outfit: Path, out: Path) -> dict
         config = json.loads(template.read_text())
         (bundle / "inputs" / "regions.png").write_bytes(local_file(template.parent, config["regions"]).read_bytes())
         config["regions"] = "regions.png"
+        if "ownership" in config:
+            (bundle / "inputs" / "source-ownership.png").write_bytes(
+                local_file(template.parent, config["ownership"]).read_bytes())
+            config["ownership"] = "source-ownership.png"
         write_json(bundle / "inputs" / "template.json", config)
         (bundle / "inputs" / "original-template.json").write_bytes(template.read_bytes())
         (bundle / "inputs" / "outfit.json").write_bytes(outfit.read_bytes())

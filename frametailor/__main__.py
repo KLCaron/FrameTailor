@@ -8,6 +8,9 @@ from .composite import composite
 from .demo import create_demo
 from .pipeline import run, validate
 from .native import native_outfit
+from .ownership import validate_ownership
+from .palette import plan_palette, verify_native
+from .review import review_bundle
 
 
 def main() -> int:
@@ -37,6 +40,25 @@ def main() -> int:
     check.add_argument("candidate", type=Path)
     check.add_argument("--profile", choices=["exact-alpha-v1", "outfit-regions-v1"], default="exact-alpha-v1")
     check.add_argument("--editable-mask", type=Path, help="source-authored binary PNG; required for outfit profile")
+    for name in ("ownership", "review"):
+        command = commands.add_parser(name, help="check explicit ownership, materials and palette constraints" if name == "ownership"
+                                      else "write native/10x review sheets, overlays and coordinate ledgers")
+        command.add_argument("source", type=Path)
+        command.add_argument("candidate", type=Path)
+        command.add_argument("--template", required=True, type=Path)
+        command.add_argument("--appearance", required=True, type=Path)
+        if name == "review":
+            command.add_argument("--out", required=True, type=Path)
+            command.add_argument("--sequences", type=Path, help="source-bound tick timing and explicit flips")
+            command.add_argument("--frames", nargs="+", help="representative frame ids for comparisons; checks still cover all frames")
+            command.add_argument("--reference", action="append", type=Path, help="private concept/reference image; repeatable")
+    palette = commands.add_parser("palette-plan", help="check the full opaque component-color union before authoring")
+    palette.add_argument("config", type=Path, help="JSON with components and optional per-component substitutions")
+    native_check = commands.add_parser("verify-native", help="verify existing indexed PNG/BGR555/frame-major 4bpp representations")
+    native_check.add_argument("indexed", type=Path)
+    native_check.add_argument("--palette", required=True, type=Path)
+    native_check.add_argument("--native", required=True, type=Path)
+    native_check.add_argument("--frame-size", required=True, type=int, nargs=2, metavar=("WIDTH", "HEIGHT"))
     args = parser.parse_args()
     try:
         if args.command == "demo":
@@ -48,6 +70,16 @@ def main() -> int:
             result = composite(args.source, args.candidate, args.editable_mask, args.out, args.mode, args.missing_candidate)
         elif args.command == "outfit":
             result = native_outfit(args.source, args.template, args.outfit, args.out)
+        elif args.command == "ownership":
+            result = validate_ownership(args.source, args.candidate, args.template, args.appearance)
+        elif args.command == "review":
+            result = review_bundle(args.source, args.candidate, args.template, args.appearance, args.out,
+                                   args.sequences, args.frames, args.reference)
+        elif args.command == "palette-plan":
+            config = json.loads(args.config.read_text())
+            result = plan_palette(config["components"], config.get("substitutions"))
+        elif args.command == "verify-native":
+            result = verify_native(args.indexed, args.palette, args.native, args.frame_size)
         else:
             if args.profile == "outfit-regions-v1":
                 if args.editable_mask is None:

@@ -98,3 +98,30 @@ rules = [{"rect": [4, 16, 8, 8], "colors": {"#65866b": 1}}]
 Unmatched and transparent pixels stay protected. Missing colors, invalid bounds and conflicting labels fail; rule order cannot override ownership. Review the resulting labels against every source pose. Accessories can be replaceable clothing, and skin covered by a sleeve can belong to clothing; these are source-specific decisions, not automatic classifications.
 
 A template pose may declare `"occluders": {"near_hand": [[7, 20], [7, 21]]}` using frame-local coordinates. These points must be visible, protected source pixels. A garment detail can opt in with `"occluded_by": ["near_hand"]`; only matching points retain the source instead of receiving detail color. The named part may be absent from other poses, but must exist in the template. All other bounds, region and overlap checks still apply. Reports record each hidden detail coordinate and total `occluded_pixel_count`; record unusual pose decisions in `exceptions`. This handles simple foreground parts, without depth inference, rigging or silhouette changes. Palette budgets count visible RGB colors only; indexed encoding and target-specific palette validation remain external.
+
+## Ownership and production review
+
+```sh
+python -m examples.ownership_review --out output/ownership
+frametailor review output/ownership/source/source.json output/ownership/source/coat.json \
+  --template output/ownership/source/template.json \
+  --appearance output/ownership/source/coat-appearance.json \
+  --sequences output/ownership/source/sequences.json --frames step-0 \
+  --out output/representative-review
+```
+
+The [original robot example](examples/ownership_review.py) reuses one source ownership map and pose/anchor template for a longer coat without a satchel and a vest retaining it. This demonstrates contract reuse, not automatic fitting or artistic acceptance. Source annotations still require human review. Existing native templates may carry these ownership fields alongside their rendering regions and anchors.
+
+An ownership template binds the source sheet and animation structure hashes, names an L-mode `ownership` PNG, and defines `components` by ids 1..255 with `name` and `kind`: `identity`, `clothing`, `accessory`, `equipment`, `exterior`, or `costume`. Zero is unresolved. Source labels describe visible components and transparent exterior independently of RGB; shared colors never imply shared ownership.
+
+An appearance declares `source_policy` (`retain`, `replace`, or `remove`) for every source clothing/accessory id. Ordered `layers` (`name`, integer `owner`, binary PNG `mask`) resolve final ownership from back to front, permitting explicit silhouette changes and per-pose depth. New appearance components must be costumes. A `material_map` L-mode PNG, `material_labels` id-to-role map and `materials` role-to-hex-RGB map describe exact expected colors; all final costume pixels need material labels. These are authored expectations, not masks inferred from the candidate.
+
+`frametailor ownership SOURCE CANDIDATE --template TEMPLATE --appearance APPEARANCE` checks the complete sheet. It flags unresolved ownership/replacement, unchanged surviving source clothing/accessories, missing component pixels, exterior expansions, changed protected RGBA and decoded material RGB drift. Identity and equipment occlusion require explicit exceptions. Each exception names `frame`, local `point`, `check`, exact `rgba` and a `reason`; stale exceptions fail. Shared unchanged costume outlines also need explicit survivor exceptions. Optional `relations` compare listed frame/point samples for ownership, material and RGBA consistency. See the runnable example for JSON shapes.
+
+Review bundles include native/10× nearest-neighbour comparisons, resolved ownership and silhouette overlays, exact colour diagnostics, JSON/CSV correction ledgers and hashed provenance. `--frames` limits comparison panels while checks cover all frames. Optional repeatable `--reference IMAGE` retains concept references for human comparison without inferring alignment. Keep private references and these detailed review bundles outside public distributions. Newly enclosed air and isolated pixels are review hints; legitimate exterior stays permitted and no pixels are filled or repaired. `ok` means declared technical constraints passed; `approved` always remains false.
+
+Sequence JSON binds `source_structure_sha256`, declares `tick_hz`, and supplies named `sequences` with explicit `loop` and `steps` (`frame`, positive `ticks`, optional boolean `flip_x`/`flip_y`). Each sequence produces contact sheets and native/10× APNG comparisons. Exact rational tick durations and repeated steps are retained. Convert engine commands, offsets, finite loops and callbacks to explicit steps using source evidence first; this tool does not emulate an engine. Missing sequences produce static review only, never a falsely timed catalog preview.
+
+Before drawing a sheet, `frametailor palette-plan PLAN.json` checks a full `components` map of component names to opaque hex-RGB lists. Include separately rendered consumers of the same hardware palette. Optional `substitutions` are explicit RGB maps scoped to each component and applied simultaneously. The report checks 15 opaque colors plus transparency, requires exact decoded BGR555 values, and ranks possible single-slot merges by squared RGB distance without applying them or approving their appearance. Ownership reviews check the actual candidate union plus images named in `palette_components`; intentional state color changes require exact material exceptions.
+
+`frametailor verify-native indexed.png --palette palette.bin --native tiles.bin --frame-size 16 32` verifies an existing 16-entry indexed PNG, exact little-endian BGR555 bytes and frame-major 8×8 tiles with low nibble first. It supports horizontal frame atlases and checks independent index decoding; it does not export, quantize or modify assets.

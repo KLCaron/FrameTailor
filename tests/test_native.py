@@ -71,6 +71,20 @@ class NativeOutfitTests(unittest.TestCase):
             self.assertEqual(overalls.getpixel((x, 18)), (39, 43, 60, 255))
         self.assertNotEqual(output.getpixel((7, 18)), overalls.getpixel((7, 18)))
 
+    def test_extended_template_keeps_ownership_asset_portable(self):
+        ownership = Image.new("L", (144, 32), 1)
+        ownership.save(self.source / "ownership.png")
+        config = json.loads(self.template.read_text())
+        config["ownership"] = "ownership.png"
+        write_json(self.template, config)
+        out = self.root / "extended"
+        native_outfit(self.manifest, self.template, self.outfit, out)
+        portable = json.loads((out / "inputs/template.json").read_text())
+        self.assertEqual(portable["ownership"], "source-ownership.png")
+        self.assertEqual(digest(out / "inputs/source-ownership.png"), digest(self.source / "ownership.png"))
+        provenance = json.loads((out / "provenance.json").read_text())
+        self.assertEqual(provenance["inputs_sha256"]["source-ownership.png"], digest(self.source / "ownership.png"))
+
     def test_deterministic_bundle_and_recorded_manual_exception(self):
         config = json.loads(self.template.read_text())
         config["poses"]["south-0"]["exceptions"] = ["Reviewed source anchor for this pose"]
